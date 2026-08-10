@@ -15,6 +15,13 @@ _What you need to run Regmon-RE, and the support model._
   account via OpenRouter also works.
 - **Fossil** (optional) — only if you want to browse the repo the manual way.
   opencode can do all Fossil operations for you.
+- **stlink** (the ST-Link host tools) — needed to **flash/program** the chip
+  (`st-flash`). Regmon-RE itself talks to the probe through its own bundled
+  `swdd`, but when you want to write new firmware you use st-flash.
+  - Arch: `sudo pacman -S stlink`
+  - Debian/Ubuntu: `sudo apt install stlink-tools`
+  - FreeBSD: `sudo pkg install stlink`
+  - (Install via opencode if you're not sure — it knows how.)
 
 ## Hardware (the bench)
 

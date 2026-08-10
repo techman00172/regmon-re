@@ -63,12 +63,23 @@ The console auto-detects the chip (IDCODE) and loads the right SVD database.
 - **"No target"** — probe not connected, or swdd not running (`swdd &`).
 - **swdd won't start** — probe not detected on USB, or another process holds the
   ST-Link claim.
+- **st-flash fails "unable to claim"** — swdd still holds the probe. Click
+  **SWDD OFF**, flash, then **SWDD ON**. (See `doc/programming-the-chip.md`.)
 - **AI says "opencode not found"** — opencode not installed/on PATH.
 - **Wrong database** — re-run Detect Chip; confirm the chip is wired.
+
+## Programming / flashing
+
+The ST-Link is single-owner: swdd (live reading) and st-flash (programming)
+cannot both hold it. Workflow: **SWDD OFF → st-flash write → SWDD ON**. The
+console's buttons do this; no terminal needed. With a Mecrisp Forth kernel,
+Regmon-RE reads through the synchronized ring buffer and works off the shelf.
+Detail: `doc/programming-the-chip.md`.
 
 ## Reference
 
 - `doc/requirements.md` — system + hardware requirements, support model.
 - `doc/operation.md` — full operation guide.
+- `doc/programming-the-chip.md` — the ring buffer + SWD OFF/ON flash workflow.
 - `doc/portability-design.md` — design notes.
 - `README.md` — the five-step install + repo contents.

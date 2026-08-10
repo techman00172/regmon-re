@@ -49,6 +49,10 @@ it shows "No target" — that is correct, not an error.
   block sits on the button matching the real state.
 - Use it to stop swdd, flash a new binary with `st-flash`, then start swdd again
   — all from the console, no terminal needed.
+- Why: the ST-Link is single-owner. swdd holds it to read live; st-flash needs
+  it to program. The OFF/ON dance hands the probe over and back. Full detail in
+  `doc/programming-the-chip.md` (including how the synchronized ring buffer
+  works and why Forth works off the shelf).
 
 ## Typical workflows
 
