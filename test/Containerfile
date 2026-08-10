@@ -1,0 +1,49 @@
+# Containerfile — isolated test environment for Regmon-RE
+# Builds a clean Arch base with everything Regmon-RE needs, so the test
+# harness runs the install in total isolation (no fossilcrew, no swdai, no
+# contamination from Terry's box).  Wipe-and-repeat: the container is
+# discarded after each test run.
+#
+# Build:  podman build -t regmon-re-test -f test/Containerfile .
+# Run:    podman run --rm regmon-re-test /test/test-isolated.sh
+
+FROM archlinux:latest
+
+# Keep pacman quiet and avoid the keyring prompt.
+RUN echo "ILoveCandy" >/dev/null
+
+# Base tooling + Regmon-RE deps.
+# python3 + tkinter = the console GUI (Arch: 'tk' provides tkinter)
+# sqlite3 = SVD database queries
+# opencode = the AI agent (installed from the official script)
+# fossil = to open the .fossil repo (opencode may use it)
+# stlink = st-flash for programming (dependency check)
+# xvfb = virtual display so the console can launch headless
+# git + curl + bash = opencode installer deps
+RUN pacman -Sy --noconfirm --needed \
+        python tk sqlite \
+        base-devel git curl \
+        xorg-server-xvfb \
+    && rm -rf /var/cache/pacman/pkg
+
+# Install opencode (the AI agent).
+RUN curl -fsSL https://opencode.ai/install | bash \
+    && mv /root/.opencode/bin/opencode /usr/local/bin/opencode \
+    || true
+
+# fossil (needed to open the repo if opencode uses the CLI path).
+RUN curl -fsSL https://fossil-scm.org/uv/fossil-2.24-linux-x86_64.tar.gz -o /tmp/fossil.tgz \
+    && tar -xzf /tmp/fossil.tgz -C /usr/local/bin fossil 2>/dev/null \
+    || true
+
+# stlink (st-flash) — needed to flash; may fail if arch repo lacks it, ok.
+RUN pacman -S --noconfirm stlink 2>/dev/null || true
+
+# The repo is mounted in at /test-src; the test script lives in the image.
+ENV HOME=/root
+WORKDIR /root
+
+# Default: the harness script (overridden by podman run).
+COPY test/test-isolated.sh /test-isolated.sh
+RUN chmod +x /test-isolated.sh
+CMD ["/test-isolated.sh"]
