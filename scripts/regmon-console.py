@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regmon Console-RE — clickable control for the Regmon display on the second monitor.
+"""Regmon-RE — clickable control for the Regmon display on the second monitor.
 
 Lives on screen 0 (where the WM works). Lists every STM32 register from the SVD
 database with its LIVE value, read via the swdd daemon. Clicking a register
@@ -52,18 +52,6 @@ else:
     _db = _chip.chip_db_path(_CHIP_INFO)
     if _db:
         SVD_DB = _db
-
-# Chip-assist module (auto-identify unknown chips + build their SVD DB from the
-# backup server). Loaded the same importlib way; None if unavailable.
-_assist = None
-try:
-    _aspec = _ilu.spec_from_file_location(
-        "chip_assist",
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "chip-assist.py"))
-    _assist = _ilu.module_from_spec(_aspec)
-    _aspec.loader.exec_module(_assist)
-except Exception:
-    _assist = None
 
 # Local AI gateway (fossilcrew, warm koda on GPU). Gateway-first per AGENTS.md.
 GATEWAY_URL = "http://127.0.0.1:9001/v1/chat/completions"
@@ -202,7 +190,7 @@ FONT_SMALL = ("JetBrains Mono", 12)
 # tag 'v2.0.0' marks that release; bump MINOR for new features, PATCH for fixes.
 # v2.1.0 = the RE (reverse-engineering) era: Save Flash, auto chip-detect on
 # board swap, SWDD ON/OFF from the console, no-target/off/activating status,
-# Koda big/small toggle.  Renamed 'Regmon Console-RE' to reflect the job it now
+# Koda big/small toggle.  Renamed 'Regmon-RE' to reflect the job it now
 # does (flash dumps + forensics + chip-aware DBs, not just register watching).
 VERSION = "2.1.0"
 
@@ -594,7 +582,7 @@ def format_bitfield_line(value, name, info, max_name, peri=None, reg=None):
 class RegmonConsole:
     def __init__(self, root):
         self.root = root
-        self.root.title("Regmon Console-RE")
+        self.root.title("Regmon-RE")
         self.root.geometry("680x970")
         self.root.attributes("-topmost", True)
         self.root.configure(bg=BG)
@@ -653,11 +641,7 @@ class RegmonConsole:
         entry.bind("<Return>", lambda e: self.select_current())
         entry.focus_set()
         # Pack side=RIGHT so the LAST-packed sits LEFTMOST: left-to-right the
-        # row reads  Assist | Detect | Snapshot | Upload  (Terry works left to right).
-        assist_btn = tk.Button(top, text="\U0001f527 Assist", bg="#5a3a7a", fg="#e8d5ff",
-                               activebackground="#6a4a8a", activeforeground="#f0ddff",
-                               font=FONT_SMALL, relief="flat", command=self.assist_chip)
-        assist_btn.pack(side=tk.RIGHT, padx=4)
+        # row reads  Detect | Snapshot | Upload  (Terry works left to right).
         detect_btn = tk.Button(top, text="\U0001f50d Detect Chip", bg="#4a3a5a",
                                fg="#ddccff", activebackground="#5a4a6a",
                                activeforeground="#eeccff", font=FONT_SMALL,
@@ -827,24 +811,6 @@ class RegmonConsole:
         self.swdd_on_btn.pack(side=tk.RIGHT, padx=2)
         self._refresh_swdd_indicators()
 
-        # Koda mode toggle: 27B (big) vs 7B (small, frees GPU 0 for FLUX).
-        # This is a FossilCon convenience (manages the crew's GPU model);
-        # in standalone it is hidden when koda-mode.sh is absent.
-        if os.path.isfile(os.path.expanduser("~/fossil/fossilcrew/koda-mode.sh")):
-            self.koda_btn = tk.Button(bottom, text="\u2699 Koda: big", bg="#3a3a2a",
-                                      fg="#ddcc88", activebackground="#4a4a3a",
-                                      activeforeground="#eecc88", font=FONT_SMALL,
-                                      relief="flat", command=self.toggle_koda_mode)
-            self.koda_btn.pack(side=tk.RIGHT, padx=2)
-            self.koda_progress = ttk.Progressbar(
-                bottom, orient="horizontal", length=120, mode="determinate",
-                maximum=100, value=0)
-            self.koda_progress.pack(side=tk.RIGHT, padx=(0, 4))
-            self._refresh_koda_btn()
-        else:
-            self.koda_btn = None
-            self.koda_progress = None
-
         self.rebuild_list()
         self._browse_if_collapsed()  # startup: nothing open → browse all
 
@@ -911,70 +877,6 @@ class RegmonConsole:
         else:
             self.update_status("Chip: unknown chip — DB kept at %s"
                                % os.path.basename(SVD_DB))
-
-    def assist_chip(self):
-        """Auto-assist: identify an unknown chip, search the server for its
-        SVD + PDFs, build the database, and reload.  Runs the SSH work in a
-        background thread so the GUI stays responsive; updates the header and
-        status when done.  On failure it tells Terry to call opencode."""
-        global SVD_DB, _CHIP_INFO
-        self.update_status("Assist: identifying chip + building database…")
-
-        def work():
-            try:
-                # load chip-assist the same importlib way as chip-detect
-                if _assist is None:
-                    self.root.after(0, self.update_status,
-                                    "assist module unavailable")
-                    return
-                info = _assist.identify()
-                if not info.get("ready"):
-                    self.root.after(0, self.update_status,
-                                    "Assist failed: %s — call opencode"
-                                    % info.get("error", "unknown error"))
-                    return
-                self.root.after(0, self._assist_done, info)
-            except Exception as e:
-                self.root.after(0, self.update_status,
-                                "Assist error: %s — call opencode" % e)
-
-        threading.Thread(target=work, daemon=True).start()
-
-    def _assist_done(self, info):
-        global SVD_DB, _CHIP_INFO
-        # reload the chip identity + database now that the assist built it
-        try:
-            new_info = _chip.detect_chip()
-            if new_info.get("dev_id") is not None:
-                _CHIP_INFO.update(new_info)
-            else:
-                # assist identified it even if bench detect didn't: adopt it
-                _CHIP_INFO.update({
-                    "dev_id": info.get("dev_id"),
-                    "chip": info.get("family"),
-                    "name": "%s (%s)" % (info["family"], info.get("name") or ""),
-                    "idcode": 0xE0042000,
-                    "unknown": False,
-                })
-        except Exception:
-            pass
-        db = info.get("db") or SVD_DB
-        if os.path.isfile(db):
-            SVD_DB = db
-        self.peripherals = load_registers()
-        self.values.clear()
-        self.prev_values.clear()
-        self.rebuild_list()
-        self._set_chip_header(_CHIP_INFO)
-        counts = svd_counts(SVD_DB)
-        if counts:
-            self.chip_counts_label.config(
-                text="SVD counts: %d peripherals · %d registers · %d bitfields"
-                     % counts)
-        pdfs = info.get("pdfs") or []
-        self.update_status("Assist ready: %s (DEV_ID 0x%03x), DB %s, %d server PDFs found"
-                           % (_CHIP_INFO["name"], dev or 0,
-                              os.path.basename(SVD_DB), len(pdfs)))
 
     def _start_poller(self):
         def poll():
@@ -1130,7 +1032,7 @@ class RegmonConsole:
         if msg:
             self.status.config(text=msg, fg="#ffdd66")
         else:
-            self.status.config(text="● Regmon Console-RE — double-click a register to see its bitfields",
+            self.status.config(text="● Regmon-RE — double-click a register to see its bitfields",
                                fg="#66ff66")
 
     # ---- Live progress (message + NN%) ----------------------------------- #
@@ -1237,118 +1139,6 @@ class RegmonConsole:
     def swdd_off(self):
         self._swdd("stop")
 
-    # ---- Koda mode toggle (27B big / 7B small-for-FLUX) ------------------ #
-    KODA_MODE_SH = os.path.expanduser("~/fossil/fossilcrew/koda-mode.sh")
-
-    def _koda_mode(self):
-        """Return 'normal' or 'flux' (which koda model is configured)."""
-        try:
-            p = subprocess.run([self.KODA_MODE_SH, "show"], capture_output=True,
-                               text=True, timeout=10, stdin=subprocess.DEVNULL)
-            out = (p.stdout or "") + (p.stderr or "")
-            if "flux mode" in out or "koda is in flux mode" in out:
-                return "flux"
-            return "normal"
-        except Exception:
-            return "unknown"
-
-    def _refresh_koda_btn(self):
-        """Label the koda button with the current mode: big (27B) or small."""
-        mode = self._koda_mode()
-        if mode == "flux":
-            self.koda_btn.config(text="\u2699 Koda: small")
-        else:
-            self.koda_btn.config(text="\u2699 Koda: big")
-
-    def toggle_koda_mode(self):
-        """Switch koda between the 27B (normal) and 7B (flux, frees GPU 0 for
-        FLUX).  Drives koda-mode.sh which restarts the fossilcrew stack (~1
-        min) — runs in a background thread so the console stays responsive.
-        A progress bar fills from REAL observable stages, not a timer:
-        stack stopping (0-45%) → new model's llama-server process spawned
-        (50-70%) → model loaded & port 9001 answering (100%)."""
-        current = self._koda_mode()
-        target = "flux" if current == "normal" else "normal"
-        token = self._progress_start(
-            "Koda: switching to %s (stack restart ~1 min)…" % target)
-
-        # The model file koda-mode.sh will launch (used to detect the new
-        # llama-server process).
-        target_model = ("Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf"
-                        if target == "flux"
-                        else "Qwen3.6-27B-A3B-Coder-Q4_K_M.gguf")
-
-        def koda_ready():
-            """True when koda's port answers (model fully loaded)."""
-            try:
-                return subprocess.run(
-                    ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}",
-                     "--max-time", "3", "http://127.0.0.1:9001/v1/models"],
-                    capture_output=True, text=True, timeout=8,
-                    stdin=subprocess.DEVNULL).stdout.strip() == "200"
-            except Exception:
-                return False
-
-        def new_process_alive():
-            try:
-                p = subprocess.run(
-                    ["pgrep", "-f", target_model], capture_output=True, text=True,
-                    timeout=8, stdin=subprocess.DEVNULL)
-                return bool((p.stdout or "").strip())
-            except Exception:
-                return False
-
-        def monitor():
-            """Poll the real stages and fill the progress bar."""
-            self.koda_progress.config(value=5)
-            while True:
-                # done?
-                if koda_ready():
-                    self.root.after(0, lambda: self.koda_progress.config(value=100))
-                    self.root.after(0, self._koda_done, token, target)
-                    return
-                if new_process_alive():
-                    # model process spawned — loading (~50-90%)
-                    self.root.after(0, lambda: self.koda_progress.config(value=70))
-                else:
-                    # stack still stopping/starting
-                    self.root.after(0, lambda: self.koda_progress.config(value=40))
-                time.sleep(2)
-
-        def work():
-            try:
-                p = subprocess.run(
-                    [self.KODA_MODE_SH, target], capture_output=True, text=True,
-                    timeout=180, stdin=subprocess.DEVNULL)
-                ok = p.returncode == 0
-                if not ok:
-                    self.root.after(0, self._koda_done, token, target,
-                                    "Koda switch failed: %s"
-                                    % (p.stderr or "").strip()[:120])
-                    return
-                # koda-mode.sh returned; wait for the port to come up
-                for _ in range(60):
-                    if koda_ready():
-                        self.root.after(0, self._koda_done, token, target)
-                        return
-                    time.sleep(2)
-                self.root.after(0, self._koda_done, token, target,
-                                "Koda: switched but port not answering yet")
-            except Exception as e:
-                self.root.after(0, self._koda_done, token, target,
-                                "Koda switch error: %s" % e)
-
-        threading.Thread(target=monitor, daemon=True).start()
-        threading.Thread(target=work, daemon=True).start()
-
-    def _koda_done(self, token, target, msg=None):
-        """Stop the koda progress bar + status line after a switch attempt."""
-        self.koda_progress.config(value=0)
-        label = "small (FLUX mode)" if target == "flux" else "big (27B)"
-        if msg is None:
-            msg = "Koda: %s" % label
-        self._progress_stop(token, msg)
-        self._refresh_koda_btn()
 
     def rebuild_list(self):
         self.tree.delete(*self.tree.get_children())
@@ -1736,10 +1526,10 @@ class RegmonConsole:
     # Snapshot / upload (revived from the retired DevCon facility).
     # ------------------------------------------------------------------ #
     def _find_console_win(self):
-        """Return the X window id of this Regmon Console-RE window, or None."""
+        """Return the X window id of this Regmon-RE window, or None."""
         try:
             out = subprocess.run(
-                ["xdotool", "search", "--name", "Regmon Console-RE"],
+                ["xdotool", "search", "--name", "Regmon-RE"],
                 capture_output=True, text=True, timeout=6).stdout.split()
             if out:
                 return out[-1]
@@ -1748,7 +1538,7 @@ class RegmonConsole:
         return None
 
     def _capture(self):
-        """Capture this Regmon Console-RE window (monitor 0).  Returns
+        """Capture this Regmon-RE window (monitor 0).  Returns
         (console_path, console_path) on success, or (None, None).  The Regmon
         display (screen :0.1) is no longer captured — we only snapshot the
         console now."""
@@ -1781,7 +1571,7 @@ class RegmonConsole:
         return console_path, console_path
 
     def snapshot(self):
-        """Capture the Regmon Console-RE window and save locally. No upload.
+        """Capture the Regmon-RE window and save locally. No upload.
         The full path is auto-copied to the clipboard so Terry can paste it
         without needing to read the on-screen text."""
         console_path, _ = self._capture()
@@ -1792,7 +1582,7 @@ class RegmonConsole:
         self.update_status(f"Snapshot saved (path copied): {console_path}")
 
     def upload_snapshot(self):
-        """Capture the Regmon Console-RE window, commit to the GitHub schematics
+        """Capture the Regmon-RE window, commit to the GitHub schematics
         repo, push, and post the raw URL to the swdai chatroom."""
         console_path, _ = self._capture()
         if not console_path:
@@ -1903,7 +1693,7 @@ def main():
     try:
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
-        print("Regmon Console-RE already running — exiting.")
+        print("Regmon-RE already running — exiting.")
         return
     os.ftruncate(fd, 0)
     os.write(fd, str(os.getpid()).encode())
