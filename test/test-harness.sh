@@ -23,8 +23,12 @@ fi
 echo ""
 echo "-- Running isolated tests (container discarded after) --"
 # Bind-mount the repo into the container; run the test script.
+# OPENROUTER_API_KEY is passed through from the environment (optional) so the
+# AI-reachability test can hit the free tier without baking a secret into the
+# image.
 podman run --rm \
     -v "$HERE:/test-src:ro" \
+    -e OPENROUTER_API_KEY="${OPENROUTER_API_KEY:-}" \
     "$IMG" /test-isolated.sh
 
 echo ""

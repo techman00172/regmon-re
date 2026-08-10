@@ -104,6 +104,21 @@ else
     fi
 fi
 
+# --- 7. AI reachable via OpenRouter free tier (optional: needs key) ---
+echo "-- 7. AI (OpenRouter free tier) --"
+if [ -n "${OPENROUTER_API_KEY:-}" ]; then
+    # Ask the free model something about the repo it should know.
+    ans=$(timeout 90 opencode run --model "openrouter/openai/gpt-oss-20b:free" \
+        "Look at this repo (cwd). Reply with exactly: repo found" 2>/dev/null | tr -d '\r\n' | tail -c 80)
+    if echo "$ans" | grep -qi "repo found"; then
+        ok "AI replied via free tier: $ans"
+    else
+        bad "AI reply unexpected: $ans"
+    fi
+else
+    echo "  [ SKIP ] no OPENROUTER_API_KEY set — AI test skipped"
+fi
+
 echo ""
 echo "=== RESULT: $PASS passed, $FAIL failed ==="
 [ "$FAIL" -eq 0 ] && echo "ALL TESTS PASSED" || echo "TESTS FAILED"

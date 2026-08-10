@@ -31,6 +31,12 @@ RUN curl -fsSL https://opencode.ai/install | bash \
     && mv /root/.opencode/bin/opencode /usr/local/bin/opencode \
     || true
 
+# Configure opencode to use OpenRouter's free tier (gpt-oss-20b:free).
+# The key is injected at runtime via the environment (OPENROUTER_API_KEY),
+# so no secret is baked into the image.
+RUN mkdir -p /root/.config/opencode
+COPY test/opencode-free.json /root/.config/opencode/opencode.json
+
 # fossil (needed to open the repo if opencode uses the CLI path).
 RUN curl -fsSL https://fossil-scm.org/uv/fossil-2.24-linux-x86_64.tar.gz -o /tmp/fossil.tgz \
     && tar -xzf /tmp/fossil.tgz -C /usr/local/bin fossil 2>/dev/null \
