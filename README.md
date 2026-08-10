@@ -1,61 +1,59 @@
-# regmon-re
+# Regmon-RE — version 4.0.0
 
-**A standalone register monitor (reverse-engineering console) for ARM
-microcontrollers, with an AI assistant via opencode.**
+**A register monitor for ARM microcontrollers, with an AI assistant.**
 
-Keyboard-operated. Talks to a chip over a cheap SWD debug probe and reads the
-silicon directly — no vendor tooling, no lock-in. The AI comes from **opencode**
-(any model you configure: local or cloud).
+Regmon-RE talks to a chip over a cheap SWD debug probe and reads the silicon
+directly — live registers, bitfields, flash contents — and it has an AI that
+can analyse what the chip is doing. No vendor tooling. No lock-in.
 
-## How it works
+This download contains:
+- `README.md` — this file
+- `regmon-re.fossil` — the repository (Fossil DVCS, the whole project)
+
+## The five-step install — the easiest you'll ever see
+
+You need opencode and an AI account. If you're reading this you almost certainly
+already have the AI part. Regmon-RE's AI does the install for you.
+
+1. **Install opencode** — https://opencode.ai (free, one command)
+2. **Get an AI account** — DeepSeek works great (cheap), or use a free
+   DeepSeek Flash account via OpenRouter if you don't have credits yet
+3. **Point opencode at DeepSeek** — `opencode` with your DeepSeek API key
+   (or OpenRouter). Two minutes.
+4. **Open the repo** — `fossil open regmon-re.fossil` (or just tell opencode
+   where `regmon-re.fossil` is)
+5. **Tell opencode: "get Regmon RE working for me"** — and that's it.
+
+opencode will:
+- check your system has python3 + tkinter + a working audio-free setup
+- build or link `swdd` (the SWD debug daemon, bundled in the repo)
+- verify the SVD databases are present
+- launch Regmon-RE for you
+
+## What you need on the bench
+
+- a **Linux** PC (any recent distro)
+- an **SWD debug probe** — ST-Link or clone (a few dollars)
+- a target **STM32 board** (or other ARM Cortex-M supported chip)
+- your chip wired to the probe (SWDIO, SWCLK, GND, 3V3)
+
+## Using it
+
+- plug in the probe + board
+- the console auto-detects the chip (reads the silicon's IDCODE)
+- browse registers, **Analyse Reg**, **Analyse Prog**, **Strings**, **Save Flash**
+- **Ask AI** — any register-level question, answered by your AI
+
+## What's in the repo
 
 ```
-SWD probe → swdd daemon → regmon-console (Tkinter GUI) → opencode run (AI)
+databases/        SVD register databases (F051, F103, F407, L0xx + RM ref)
+scripts/          the console + chip detection
+swdcom/           swdd daemon + the AI analysis tools
+setup.sh          dependency check + linking
 ```
-
-The console auto-detects the connected chip from its IDCODE, loads the matching
-SVD register database, and lets you:
-- browse peripherals/registers/bitfields live
-- **Analyse Reg** — watch a register across ~10s, AI verdict on what it's doing
-- **Analyse Prog** — fingerprint the whole chip, AI verdict on the program
-- **Strings** — scan flash for readable text (firmware secrets)
-- **Save Flash** — dump the whole flash image (clone / offline analysis)
-- **Ask AI** — any register-level question answered via opencode
-
-## Requirements
-
-- **opencode** — https://opencode.ai (the AI agent)
-- **python3 + tkinter** (Arch: `tk`, Debian: `python3-tk`)
-- **swdd** — bundled in `swdcom/` (talks to the ST-Link probe)
-- an **SWD debug probe** (ST-Link etc.) + a target STM32 board
-
-## Quick start
-
-```
-./setup.sh                 # checks deps, links regmon-console + swdd
-swdd &                     # start the SWD daemon (serves /tmp/swdd-cmd.sock)
-regmon-console             # launch the console
-```
-
-The console shows "No target" until a probe + chip are connected.
-
-## Configuration (env vars)
-
-| Var | Default | Meaning |
-|---|---|---|
-| `RE_RUN_AGENT` | `build` | opencode agent (`build` = act, `plan` = think) |
-| `RE_OPENCODE` | `opencode` | opencode executable |
-| `RE_AI_TIMEOUT` | `120` | seconds to wait for the AI |
-| `RE_UPLOAD_REPO` | *(empty)* | optional git repo for snapshot uploads |
-
-## Databases
-
-Four SVD databases ship with the repo (`databases/`): STM32F051, STM32F103,
-STM32F407, STM32L0xx. The chip-detector picks the right one automatically.
-Custom databases (curated, errata-baked knowledge for other families) are paid
-add-ons — the software stays free.
 
 ## License
 
-GPL (see COPYING). Software is free; custom knowledge databases are paid
-add-ons.
+GPL (see COPYING in the repo). Free software. Custom curated databases for
+other chip families are available as paid add-ons — the software stays free.
