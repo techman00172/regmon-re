@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Terry Porter <regmon@fastmail.com> — MIT license, see COPYING.
 """chip-detect.py — identify the connected STM32 from its IDCODE.
 
 Regmon reads registers by address via swdd; it does not know which chip is

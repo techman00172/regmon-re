@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Terry Porter <regmon@fastmail.com> — MIT license, see COPYING.
 """regmon-analyze.py — local AI analysis of a live peripheral register.
 
 Reads a register's current value via the swdd daemon, gathers the SVD bitfield

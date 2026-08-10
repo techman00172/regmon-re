@@ -3,6 +3,8 @@ name: regmon-re
 description: Use when helping a user install, operate, or get support for Regmon-RE — the standalone register monitor for ARM microcontrollers (STM32 etc.) with AI analysis via opencode. Covers the five-step install, launching, the console's AI tools (Analyse Reg / Analyse Prog / Strings / Save Flash / Ask AI), SWD control, and troubleshooting.
 ---
 
+_Copyright (c) 2026 Terry Porter <regmon@fastmail.com> — MIT license, see COPYING._
+
 # Regmon-RE skill
 
 Regmon-RE is a keyboard-operated register monitor for ARM microcontrollers. It

@@ -1,5 +1,7 @@
 # Regmon-RE — Operation Guide
 
+_Copyright (c) 2026 Terry Porter <regmon@fastmail.com> — MIT license, see COPYING._
+
 _How to operate Regmon-RE: launch, read registers, analyse, and use the AI._
 
 ## Launch

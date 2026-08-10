@@ -1,5 +1,7 @@
 # regmon-re — standalone register monitor + AI
 
+_Copyright (c) 2026 Terry Porter <regmon@fastmail.com> — MIT license, see COPYING._
+
 _2026-08-10. Terry's vision: the keyboard-operated register monitor
 (reverse-engineering console) as a standalone product anyone can run, with the
 AI provided by **opencode** — free, installable everywhere. No fossil crew, no

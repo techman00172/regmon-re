@@ -1,5 +1,7 @@
 # Regmon-RE — Requirements & Support
 
+_Copyright (c) 2026 Terry Porter <regmon@fastmail.com> — MIT license, see COPYING._
+
 _What you need to run Regmon-RE, and the support model._
 
 ## System requirements

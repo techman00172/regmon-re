@@ -1,5 +1,7 @@
 # Regmon-RE — Programming the Chip (the SWD ring buffer & the OFF/ON dance)
 
+_Copyright (c) 2026 Terry Porter <regmon@fastmail.com> — MIT license, see COPYING._
+
 _How Regmon-RE talks to the chip, and why you switch SWD OFF before flashing —
 and back ON after. Works off-the-shelf with Forth; a small habit for anything
 else._

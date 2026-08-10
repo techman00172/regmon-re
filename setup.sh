@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Copyright (c) 2026 Terry Porter <regmon@fastmail.com> — MIT license, see COPYING.
 # setup.sh — install regmon-re (standalone register monitor + AI)
 # Requires: opencode (the AI agent) — https://opencode.ai
 #          python3 with tkinter (Arch: tk; Debian: python3-tk)

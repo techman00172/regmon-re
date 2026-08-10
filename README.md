@@ -1,5 +1,7 @@
 # Regmon-RE — version 4.0.0
 
+_Copyright (c) 2026 Terry Porter <regmon@fastmail.com> — MIT license, see COPYING._
+
 **A register monitor for ARM microcontrollers, with an AI assistant.**
 
 Regmon-RE talks to a chip over a cheap SWD debug probe and reads the silicon

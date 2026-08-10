@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Copyright (c) 2026 Terry Porter <regmon@fastmail.com> — MIT license, see COPYING.
 # regmon-console — launch the Regmon RE console.
 # Wrapper so it runs from anywhere; the console resolves its own databases.
 cd "$(dirname "$(readlink -f "$0")")/.."

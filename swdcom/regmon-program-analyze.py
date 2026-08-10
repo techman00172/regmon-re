@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Terry Porter <regmon@fastmail.com> — MIT license, see COPYING.
 """regmon-program-analyze.py — prototype: whole-chip activity fingerprint.
 
 Extends regmon-analyze.py from ONE register to the WHOLE program:

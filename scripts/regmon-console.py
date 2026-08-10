@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Terry Porter <regmon@fastmail.com> — MIT license, see COPYING.
 """Regmon-RE — clickable control for the Regmon display on the second monitor.
 
 Lives on screen 0 (where the WM works). Lists every STM32 register from the SVD
