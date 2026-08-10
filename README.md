@@ -30,6 +30,11 @@ opencode will:
 - verify the SVD databases are present
 - launch Regmon-RE for you
 
+> **Note:** during setup opencode will ask permission to run commands (setup.sh,
+> python compile checks, launching the console). Approve them as it goes —
+> that's the AI doing the install for you. Run from the checkout directory
+> (after `fossil open regmon-re.fossil`) so everything stays self-contained.
+
 ## What you need on the bench
 
 - a **Linux** PC (any recent distro)
