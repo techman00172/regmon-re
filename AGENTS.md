@@ -28,3 +28,24 @@ quickly at the expense of correctness.
 ## Code changes
 After AI has made code changes, advise the user that the changes are waiting for
 his review and commit. The AI does not commit; the user commits.
+
+## Regmon-RE
+
+Regmon-RE is a **standalone register monitor** for ARM microcontrollers
+(STM32 etc.), keyboard-operated, with AI analysis via **opencode** (the user's
+configured AI — e.g. DeepSeek). It reads the chip over an SWD probe through the
+bundled `swdd` daemon.
+
+Key facts an agent should know:
+
+- **AI:** `opencode run --agent build "<prompt>"` — env `RE_RUN_AGENT` (default
+  `build`), `RE_OPENCODE` (default `opencode`).
+- **swdd:** `swdcom/swdd`, serves Unix socket `/tmp/swdd-cmd.sock`.
+- **Databases:** `databases/*.db` (F051/F103/F407/L0xx + `stm32f0xx-rm.db`);
+  the console auto-picks by chip IDCODE.
+- **Version:** v4.0.0 (standalone tree, distinct from the swdai 2.x console).
+- **No audio/voice/TTS** — keyboard only.
+- **Docs for the user/AI:** `doc/requirements.md`, `doc/operation.md`,
+  `doc/skills/regmon-re/SKILL.md`, `README.md`.
+- **Install:** the five-step AI-driven flow — see `README.md` (user just
+  downloads the `.fossil` and says "read the install and do it").
