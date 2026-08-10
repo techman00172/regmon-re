@@ -165,6 +165,9 @@ def chip_db_path(info=None):
     info = info or detect_chip()
     here = os.path.dirname(os.path.abspath(__file__))
     db = DB_BY_CHIP.get(info["chip"], "STM32F051.db")
+    # DB_BY_CHIP values may carry a 'databases/' prefix; strip it so we join
+    # against the repo-local databases/ dir exactly once.
+    db = db.replace("databases/", "")
     full = os.path.join(here, "..", "databases", db)
     full = os.path.abspath(full)
     if os.path.isfile(full):
