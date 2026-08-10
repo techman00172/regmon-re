@@ -20,20 +20,23 @@ already have the AI part. Regmon-RE's AI does the install for you.
    DeepSeek Flash account via OpenRouter if you don't have credits yet
 3. **Point opencode at DeepSeek** — `opencode` with your DeepSeek API key
    (or OpenRouter). Two minutes.
-4. **Open the repo** — `fossil open regmon-re.fossil` (or just tell opencode
-   where `regmon-re.fossil` is)
-5. **Tell opencode: "get Regmon RE working for me"** — and that's it.
+4. **Download Regmon-RE** — just the `regmon-re.fossil` file. Nothing else.
+5. **Say the magic words** — tell opencode: *"read the install and do it"*
+   (point it at the file you downloaded). That's it.
 
 opencode will:
+- create a directory for the repo, open the Fossil repo, and check everything out
 - check your system has python3 + tkinter + a working audio-free setup
 - build or link `swdd` (the SWD debug daemon, bundled in the repo)
 - verify the SVD databases are present
 - launch Regmon-RE for you
 
+> **You don't need to know anything about Fossil.** opencode does the Fossil
+> part. You just download one file and tell it to go.
+>
 > **Note:** during setup opencode will ask permission to run commands (setup.sh,
 > python compile checks, launching the console). Approve them as it goes —
-> that's the AI doing the install for you. Run from the checkout directory
-> (after `fossil open regmon-re.fossil`) so everything stays self-contained.
+> that's the AI doing the install for you.
 
 ## What you need on the bench
 
