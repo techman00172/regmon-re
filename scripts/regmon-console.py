@@ -188,11 +188,12 @@ FONT_SMALL = ("JetBrains Mono", 12)
 # chip-aware SVD databases, Strings, Analyse Reg and Analyse Prog.  Major bump
 # over the unversioned pre-detect console (informally the v1 era).  The Fossil
 # tag 'v2.0.0' marks that release; bump MINOR for new features, PATCH for fixes.
-# v2.1.0 = the RE (reverse-engineering) era: Save Flash, auto chip-detect on
-# board swap, SWDD ON/OFF from the console, no-target/off/activating status,
-# Koda big/small toggle.  Renamed 'Regmon-RE' to reflect the job it now
-# does (flash dumps + forensics + chip-aware DBs, not just register watching).
-VERSION = "2.1.0"
+# v2.1.0 = the RE (reverse-engineering) era in swdai.
+# v4.0.0 = the STANDALONE Regmon-RE release: a distinct tree with the
+# FossilCon-only pieces removed (Assist, Koda GPU toggle) and the AI provided
+# by opencode (any model the user configures).  A new major because this is a
+# different product from the swdai console lineage.
+VERSION = "4.0.0"
 
 POLL_PERIOD = 0.5  # 2 Hz
 
