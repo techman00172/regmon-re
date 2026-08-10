@@ -58,6 +58,6 @@ FossilCon box.
 
 ## Monetisation (standing idea)
 
-Software GPL-free-to-use; paid add-ons are **custom curated databases** for
+Software free (MIT); paid add-ons are **custom curated databases** for
 chip families not shipped (labour = errata-baked, tested knowledge). Once
 funded, released to everyone.

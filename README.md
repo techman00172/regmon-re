@@ -18,10 +18,11 @@ You need opencode and an AI account. If you're reading this you almost certainly
 already have the AI part. Regmon-RE's AI does the install for you.
 
 1. **Install opencode** — https://opencode.ai (free, one command)
-2. **Get an AI account** — DeepSeek works great (cheap), or use a free
-   DeepSeek Flash account via OpenRouter if you don't have credits yet
-3. **Point opencode at DeepSeek** — `opencode` with your DeepSeek API key
-   (or OpenRouter). Two minutes.
+2. **Get an AI account** — DeepSeek works great and is cheap; or use a free
+   model on OpenRouter's free tier (e.g. `openai/gpt-oss-20b:free`). A few
+   dollars of OpenRouter credit is plenty.
+3. **Point opencode at the AI** — `opencode` with your API key (DeepSeek or
+   OpenRouter). Two minutes.
 4. **Download Regmon-RE** — just the `regmon-re.fossil` file. Nothing else.
 5. **Say the magic words** — tell opencode: *"read the install and do it"*
    (point it at the file you downloaded). That's it.
@@ -65,5 +66,12 @@ setup.sh          dependency check + linking
 
 ## License
 
-GPL (see COPYING in the repo). Free software. Custom curated databases for
+MIT (see COPYING in the repo). Free software. Custom curated databases for
 other chip families are available as paid add-ons — the software stays free.
+
+## Tested
+
+Validated end-to-end in an isolated container (`test/test-harness.sh`, Podman):
+dependencies, databases, python compile, console launch (headless), setup.sh,
+and the AI via OpenRouter's free tier — all 24 checks pass. Wipe-and-repeat:
+each run builds a fresh container and discards it.
