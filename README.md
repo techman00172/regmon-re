@@ -1,4 +1,4 @@
-# Regmon-RE — version 4.0.0
+# Regmon-RE — version 4.1.0
 
 _Copyright (c) 2026 Terry Porter <regmon@fastmail.com> — MIT license, see COPYING._
 

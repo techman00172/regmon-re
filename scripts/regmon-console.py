@@ -58,30 +58,108 @@ else:
 GATEWAY_URL = "http://127.0.0.1:9001/v1/chat/completions"
 GATEWAY_MODEL = "koda"
 
+# Hard spec facts keyed by family class (from the official datasheets).  These
+# pin the chip down so the AI can never hallucinate a clock ceiling or a
+# flash/RAM size.  Max SYSCLK is the headline; others added as needed.
+CHIP_SPEC_FACTS = {
+    "STM32F0": "max SYSCLK 48 MHz (datasheet limit)",
+    "STM32F1": "max SYSCLK 72 MHz (datasheet limit)",
+    "STM32F2": "max SYSCLK 120 MHz (datasheet limit)",
+    "STM32F3": "max SYSCLK 72 MHz (datasheet limit)",
+    "STM32F4": "max SYSCLK 168 MHz @ 3.3V (2 flash wait states); 150 MHz at low voltage. NOT 480 MHz — 480 MHz is the H7 family.",
+    "STM32L0": "max SYSCLK 32 MHz (datasheet limit)",
+    "STM32L1": "max SYSCLK 32 MHz (datasheet limit)",
+    "STM32L4": "max SYSCLK 80 MHz (datasheet limit)",
+    "STM32L5": "max SYSCLK 110 MHz (datasheet limit)",
+    "STM32F7": "max SYSCLK 216 MHz (datasheet limit)",
+    "STM32G0": "max SYSCLK 64 MHz (datasheet limit)",
+    "STM32G4": "max SYSCLK 170 MHz (datasheet limit)",
+    "STM32H7": "max SYSCLK 480 MHz (datasheet limit)",
+}
+
+# Clock/UART/GPIO recipe facts keyed by family class.  The standalone release
+# asks opencode (not the local gateway), so it cannot run the compute tools —
+# the same PLL/baud/GPIO math is baked into the prompt instead, so opencode
+# answers from real formulas rather than guesswork.
+CHIP_RECIPES = {
+    "STM32F0": ("PLL (F0, no PLLN): SYSCLK = PLL_IN * PLLMUL / PLLDIV, PLL_IN = "
+                "HSI8/2 = 4 MHz or HSE; max 48 MHz. UART: BRR = fCK/(16*baud), "
+                "USART1 on APB2, USART2 on APB1."),
+    "STM32F1": ("PLL (F1, no PLLN): SYSCLK = PLL_IN * PLLMUL, PLL_IN = HSI8/2 or "
+                "HSE, PLLMUL 2..16; max 72 MHz. UART: BRR = fCK/(16*baud), "
+                "USART1 on APB2, USART2/3 on APB1. GPIO CRL/CRH: each pin is "
+                "[CNF][MODE]; CNF depends on MODE — input: 0=analog,1=floating,"
+                "2=pullup; output: 0=pushpull,1=opendrain,2=AF pushpull,"
+                "3=AF opendrain; MODE 0=input,1=out10MHz,2=out2MHz,3=out50MHz."),
+    "STM32F2": ("PLL: SYSCLK = (PLL_IN/PLLM)*PLLN/PLLP; max 120 MHz. UART: "
+                "BRR = fCK/(16*baud), USART1 on APB2, USART2/3 on APB1."),
+    "STM32F3": ("PLL (F3, no PLLN): SYSCLK = PLL_IN * PLLMUL; max 72 MHz. "
+                "UART: BRR = fCK/(16*baud)."),
+    "STM32F4": ("PLL (F4): SYSCLK = (PLL_IN/PLLM)*PLLN/PLLP; PLLM bits5:0, "
+                "PLLN bits14:6, PLLP bits17:16 (0=2,1=4,2=6,3=8); VCO in 1-2 MHz, "
+                "VCO out 100-432 MHz; max 168 MHz. Wait states (2.7-3.6V): 0<=30, "
+                "1<=60, 2<=90, 3<=120, 4<=150, 5<=168 MHz. 100MHz from 8MHz HSE = "
+                "PLLM=8,PLLN=200,PLLP=0; 20MHz = PLLM=8,PLLN=120,PLLP=0b10. UART: "
+                "BRR=fCK/(16*baud), USART1/6 on APB2, USART2/3/4/5 on APB1."),
+    "STM32L0": ("PLL (L0): SYSCLK = PLL_IN * PLLMUL / PLLDIV; max 32 MHz; MSI is "
+                "the low-power source. UART: BRR = fCK/(16*baud), USART1 on APB2, "
+                "USART2/4/5 on APB1. GPIO uses AFSEL field names."),
+    "STM32L1": ("PLL: max 32 MHz. UART: BRR = fCK/(16*baud)."),
+    "STM32L4": ("PLL: SYSCLK = (PLL_IN/PLLM)*PLLN/PLLR; max 80 MHz (120 L4R/S); "
+                "MSI is the low-power source. UART: BRR = fCK/(16*baud)."),
+    "STM32L5": ("PLL: SYSCLK = (PLL_IN/PLLM)*PLLN/PLLR; max 110 MHz. UART: "
+                "BRR = fCK/(16*baud)."),
+    "STM32F7": ("PLL: SYSCLK = (PLL_IN/PLLM)*PLLN/PLLP; max 216 MHz (overdrive "
+                "above ~180). UART: BRR = fCK/(16*baud)."),
+    "STM32G0": ("PLL: SYSCLK = (PLL_IN/PLLM)*PLLN/PLLR; max 64 MHz. UART: "
+                "BRR = fCK/(16*baud), USART1/2 on APB2, USART3/4 on APB1."),
+    "STM32G4": ("PLL: SYSCLK = (PLL_IN/PLLM)*PLLN/PLLR; max 170 MHz. UART: "
+                "BRR = fCK/(16*baud)."),
+    "STM32H7": ("PLL: SYSCLK = (PLL_IN/PLL1M)*PLL1N/PLL1P; max 480 MHz. UART: "
+                "BRR = fCK/(16*baud)."),
+}
+
 def _ask_system_prompt():
     """System prompt for Ask AI, including the DETECTED chip identity so the
     agent never has to guess or doubt the MCU (blogher #84: it once doubted the
     chip and invented MCU_CR/MCU_SR, which do not exist on any STM32)."""
     chip = "STM32F051"
+    spec = ""
+    recipe = ""
     if _CHIP_INFO and _CHIP_INFO.get("dev_id") is not None:
         chip = _CHIP_INFO["name"]
+        spec = CHIP_SPEC_FACTS.get(_CHIP_INFO.get("chip", ""), "")
+        recipe = CHIP_RECIPES.get(_CHIP_INFO.get("chip", ""), "")
+    spec_line = f"\nHARD SPEC FACT: the connected chip is {chip}. {spec}" if spec else ""
+    recipe_line = f"\nCLOCK/UART/GPIO RECIPE ({_CHIP_INFO.get('chip','')}): {recipe}" if recipe else ""
     return f"""You are an embedded software engineer helping with a live {chip}
 (connected via SWD — Regmon console). Answer the user's register-level question
 concisely and precisely.
-
+{spec_line}
+{recipe_line}
 The connected chip is {chip}. The SVD register addresses and bitfields in the
 context belong to THIS chip — do not doubt the chip identity or suggest a
 different family unless the SVD data genuinely contradicts it.
 
 Rules:
 - Answer directly, no preamble or greetings.
+- If asked about a chip limit (clock, flash, RAM), use the HARD SPEC FACT above
+  as the ceiling. The datasheet always states these limits — never claim the
+  datasheet omits them, and never substitute another family's numbers.
+- If asked how to set a clock speed, a UART baud, or a GPIO pin mode, use the
+  CLOCK/UART/GPIO RECIPE above — it gives the exact PLL/BRR/CNF-MODE math for
+  this chip family. Compute from that recipe; never invent a formula or field
+  encoding. Give the register values to write and the sequence (e.g. set flash
+  wait states before raising the clock; disable USART before writing BRR).
 - If the context includes SVD bitfields for a register, use ONLY those exact
   field names and bit positions. Do NOT invent or substitute other STM32 field
   names (e.g. no MULSEL/DIVSEL/PREDIV unless they are actually listed).
 - Do NOT invent registers. STM32F0/F1 have NO MCU_CR/MCU_SR registers; chip
   identity is established by the DBGMCU IDCODE, not by a register name.
 - Give the register/bitfield names and their exact SVD values when relevant.
-- If the selected register is provided, relate your answer to it.
+- A selected register may be mentioned as context — relate to it ONLY if the
+  question is actually about that register; otherwise answer the question asked
+  (this is a free-form ask box, not a register-analysis request).
 - Mention what to set (register + value) and why.
 - Keep it under ~12 lines.
 - If the question is off-topic or unclear, say so in one line."""
@@ -171,8 +249,12 @@ def _ai_ask(question, register_context):
 
 # Snapshot settings.  Standalone: snapshots save to the repo's own pics/ dir.
 SCREENSHOTS_DIR = os.path.join(_REPO_ROOT, "pics")
-UPLOAD_REPO = os.environ.get("RE_UPLOAD_REPO", "")   # optional git checkout
-RAW_URL = os.environ.get("RE_RAW_URL", "")
+UPLOAD_REPO = os.environ.get(
+    "RE_UPLOAD_REPO",
+    os.path.join(os.path.dirname(_REPO_ROOT), "regmon-re-git"))   # regmon-re git mirror
+RAW_URL = os.environ.get(
+    "RE_RAW_URL",
+    "https://raw.githubusercontent.com/techman00172/regmon-re/master/pics")
 # Optional fossil chatroom for posting analysis (fossilCon-only; empty = disabled).
 CHAT_SEND_URL = os.environ.get("RE_CHAT_SEND_URL", "")
 CHAT_REFERER = os.environ.get("RE_CHAT_REFERER", "")
@@ -194,7 +276,8 @@ FONT_SMALL = ("JetBrains Mono", 12)
 # FossilCon-only pieces removed (Assist, Koda GPU toggle) and the AI provided
 # by opencode (any model the user configures).  A new major because this is a
 # different product from the swdai console lineage.
-VERSION = "4.0.0"
+VERSION = "4.1.0"
+APP_NAME = "Regmon-RE"
 
 POLL_PERIOD = 0.5  # 2 Hz
 
@@ -317,9 +400,10 @@ def scan_flash_strings(progress=None):
     a while at 256 bytes/read)."""
     kb = flash_size_kb()
     if kb is None:
-        return [], []
+        return [], [], 0, b""
     total = kb * 1024
     blob = bytearray()
+    bytes_read = 0
     addr = 0x08000000
     end = 0x08000000 + total
     chunk = 0
@@ -336,6 +420,7 @@ def scan_flash_strings(progress=None):
                     continue
                 for b in line.split(":")[1].strip().split():
                     blob.append(int(b, 16))
+                    bytes_read += 1
         addr += n
         chunk += 1
         if progress:
@@ -393,7 +478,19 @@ def scan_flash_strings(progress=None):
         if s not in seen:
             seen.add(s)
             words.append((a, s))
-    return words, kb
+    return words, kb, bytes_read, bytes(blob[:512])
+
+
+def hex_dump(data, base=0x08000000, width=16):
+    """Format bytes as a classic xxd-style hex dump (address  hex  ascii)."""
+    lines = []
+    for off in range(0, len(data), width):
+        chunk = data[off:off + width]
+        hexs = " ".join("%02x" % b for b in chunk)
+        hexs = hexs.ljust(width * 3 - 1)
+        asc = "".join(chr(b) if 32 <= b < 127 else "." for b in chunk)
+        lines.append("%08x:  %s  %s" % (base + off, hexs, asc))
+    return "\n".join(lines)
 
 
 def load_registers():
@@ -505,12 +602,13 @@ def get_bitfields(peripheral, register):
 
 
 def get_af_function(peripheral, field_name, af_value):
-    """Translate an AFRH/AFRL field value ('AF1') into the real function name
-    from the datasheet's alternate-function mapping table in the SVD database
-    (one database, one search).  Field 'AFRH9' -> pin 9; 4-bit value = AF#.
-    Returns e.g. 'AF1 = USART1_TX', 'AF1 (reserved)', or None when N/A."""
+    """Translate an AFRH/AFRL/AFSEL field value ('AF1') into the real function
+    name from the datasheet's alternate-function mapping table in the SVD
+    database (one database, one search).  Field 'AFRH9' -> pin 9; 4-bit value
+    = AF#.  'AFSEL9' -> pin 9 (STM32L0 uses AFSEL field names).  Returns e.g.
+    'AF1 = USART1_TX', 'AF1 (reserved)', or None when N/A."""
     import re
-    m = re.match(r"^AFR[LH]([0-9]+)$", field_name)
+    m = re.match(r"^(?:AFR[LH]|AFSEL)([0-9]+)$", field_name)
     if not m:
         return None
     pin = int(m.group(1))
@@ -532,6 +630,48 @@ def get_af_function(peripheral, field_name, af_value):
     if fn:
         return f"AF{af_value} = {fn}"
     return f"AF{af_value} (reserved)"
+
+
+def _pin_has_af(peripheral, field_name):
+    """True if the pin named by an AFR[LH]n / AFSELn field has any alternate
+    function mapping in the SVD database (i.e. the AF register applies to it)."""
+    import re
+    m = re.match(r"^(?:AFR[LH]|AFSEL)([0-9]+)$", field_name)
+    if not m:
+        return False
+    pin = int(m.group(1))
+    if not os.path.isfile(SVD_DB):
+        return False
+    try:
+        conn = sqlite3.connect(SVD_DB)
+        row = conn.execute(
+            "SELECT 1 FROM alternate_function WHERE port = ? AND pin = ? LIMIT 1",
+            (peripheral[-1], pin)).fetchone()
+        conn.close()
+    except Exception:
+        return False
+    return row is not None
+
+
+def _f1_gpio_cnf_meaning(field_name, cnf_value, reg_value, info):
+    """Decode an STM32F1 GPIO CNF field using the sibling MODE field.
+
+    CRL/CRH layout: each pin is [CNFx][MODEx] — CNF at the higher 2 bits,
+    MODE at the lower 2 bits of the same 4-bit group.  CNF's meaning depends
+    on whether the pin is configured as input (MODE=00) or output (MODE!=00).
+    """
+    mode_offset = info.get("offset", 0) - 2
+    if mode_offset < 0:
+        return ""
+    mode_val = (reg_value >> mode_offset) & 0b11
+    input_cnf = {0: "Analog input", 1: "Floating input (reset)",
+                 2: "Pull-up/pull-down input", 3: "Reserved"}
+    output_cnf = {0: "GP output push-pull", 1: "GP output open-drain",
+                  2: "AF output push-pull", 3: "AF output open-drain"}
+    table = input_cnf if mode_val == 0 else output_cnf
+    base = table.get(cnf_value, "")
+    mode_txt = "input" if mode_val == 0 else "output"
+    return f"{base} (MODE={mode_val} = {mode_txt})" if base else ""
 
 
 def format_bitfield_line(value, name, info, max_name, peri=None, reg=None):
@@ -569,12 +709,24 @@ def format_bitfield_line(value, name, info, max_name, peri=None, reg=None):
             if kval == fval:
                 meaning = m.group(2).strip()
                 break
-    # AFRH/AFRL: the RM prose only says 'AFn'; enrich with the real function
-    # name from the datasheet AF mapping table (same DB Regmon uses).
+    # AFRH/AFRL/AFSEL: the RM prose only says 'AFn'; enrich with the real
+    # function name from the datasheet AF mapping table (same DB Regmon uses).
+    # An unmapped AF value on a pin that HAS alternate functions means reserved.
     if reg in ("AFRH", "AFRL") and peri:
         af_fn = get_af_function(peri, name, fval)
         if af_fn:
             meaning = af_fn
+        else:
+            if _pin_has_af(peri, name):
+                meaning = f"AF{fval} (reserved)"
+    # F1 GPIO CRL/CRH: CNF's meaning depends on the sibling MODE field — decode
+    # them together so the confusing first-gen encoding is legible.
+    if reg in ("CRL", "CRH") and name.startswith("CNF"):
+        meaning = _f1_gpio_cnf_meaning(name, fval, value, info)
+    elif reg in ("CRL", "CRH") and name.startswith("MODE"):
+        mode_meaning = {0: "Input mode (reset)", 1: "Output 10 MHz",
+                        2: "Output 2 MHz", 3: "Output 50 MHz"}
+        meaning = mode_meaning.get(fval, "")
     if not meaning:
         meaning = prose.split("\n")[0][:80]
     return f"{name:<{max_name}}  {bits:>9} = {val_str:<10} {meaning[:60]}"
@@ -745,7 +897,12 @@ class RegmonConsole:
             ai_head, text="Clear", bg="#5a3a3a", fg="#ff8888", font=FONT_SMALL,
             relief="flat", activebackground="#6a4a4a", command=self.clear_ai_text)
         self.ai_clear_btn.pack(side=tk.RIGHT)
-        saveflash_btn = tk.Button(ai_head, text="\U0001f4be Save Flash",
+        self.blank_btn = tk.Button(ai_head, text="Blank?", bg="#2a4a4a",
+                                   fg="#88ffff", activebackground="#3a5a5a",
+                                   activeforeground="#aaffff", font=FONT_SMALL,
+                                   relief="flat", command=self.blank_check)
+        self.blank_btn.pack(side=tk.RIGHT, padx=(0, 4))
+        saveflash_btn = tk.Button(ai_head, text="Save Flash",
                                   bg="#3a3a2a", fg="#ffcc66",
                                   activebackground="#4a4a3a",
                                   activeforeground="#ffdd88", font=FONT_SMALL,
@@ -798,7 +955,7 @@ class RegmonConsole:
         bottom = tk.Frame(self.root, bg=BG)
         bottom.pack(fill=tk.X, padx=8, pady=(0, 6))
         self.version_label = tk.Label(
-            bottom, text=f"v{VERSION}", bg=BG, fg="#77aaaa",
+            bottom, text=f"{APP_NAME} v{VERSION}", bg=BG, fg="#77aaaa",
             font=FONT_SMALL, anchor="w")
         self.version_label.pack(side=tk.LEFT)
         self.swdd_off_btn = tk.Button(bottom, text="\u2b1c SWDD OFF", bg="#5a2a2a",
@@ -1373,8 +1530,10 @@ class RegmonConsole:
         self.root.after(0, do)
 
     def ask_ai(self):
-        """Ask the local gateway (koda) a question, with the selected register
-        as context, and show the answer in the AI Analysis box."""
+        """Ask the AI a free-form question (opencode-first, gateway fallback)
+        and show the answer in the AI Analysis box.  The selected register is
+        included as context (name + SVD bitfields) so answers stay grounded.
+        Standalone: uses whatever AI the user configured for opencode."""
         question = self.ask_entry.get().strip()
         if not question:
             self.update_status("Type a question first")
@@ -1434,7 +1593,7 @@ class RegmonConsole:
 
         def work():
             try:
-                words, kb = scan_flash_strings(
+                words, kb, bytes_read, dump = scan_flash_strings(
                     progress=lambda p: self._scan_progress(prog, gen, p))
             except Exception as e:
                 self.root.after(0, lambda: self._progress_stop(
@@ -1443,7 +1602,20 @@ class RegmonConsole:
             # stale scan (board swapped / box cleared while we were reading)?
             if gen != self._strings_gen:
                 return
+            if bytes_read == 0:
+                # every flash read failed — no chip answering on the SWD wire
+                self.root.after(0, lambda: self._progress_stop(
+                    prog, "Strings: no board attached — SWD not responding"))
+                return
             if not words:
+                # no readable text — show the raw flash so Terry can see what
+                # IS there (blank 0xFF, real code, zeros, etc.)
+                if all(b == 0xFF for b in dump):
+                    body = "No readable strings found — flash looks BLANK (first bytes all 0xFF)."
+                else:
+                    body = ("No readable strings found — first %d bytes of flash:\n\n%s"
+                            % (len(dump), hex_dump(dump)))
+                self._ai_write("── Flash strings ──\n\n%s\n" % body)
                 self.root.after(0, lambda: self._progress_stop(
                     prog, "Strings: no readable text found (flash empty or unreadable)"))
                 return
@@ -1524,6 +1696,84 @@ class RegmonConsole:
 
         threading.Thread(target=work, daemon=True).start()
 
+    def blank_check(self):
+        """Check whether the chip's flash is blank (all 0xFF) — i.e. an erased
+        or never-programmed chip.  Reads flash in 256-byte chunks (like Strings)
+        and reports either 'flash is blank' or the first non-0xFF address.
+        Distinguishes 'no board attached' from a genuinely blank flash.
+
+        The status line shows a live % while the scan runs; on completion the
+        Blank? button itself becomes the verdict: 'Blank ✓' (green) if the
+        flash is all 0xFF, 'Blank ✗' (red) if anything is programmed."""
+        self.clear_ai_text()
+        # reset the verdict button to the neutral '?' state
+        self.blank_btn.config(text="Blank?", bg="#2a4a4a", fg="#88ffff")
+        prog = self._progress_start("Blank Check: 0%")
+        kb = flash_size_kb()
+        if kb is None:
+            self._progress_stop(prog, "Blank Check: can't read flash size (swdd down?)")
+            return
+        total = kb * 1024
+        addr = 0x08000000
+        end = 0x08000000 + total
+        nchunks = (total + 255) // 256
+
+        def progress(pct):
+            # must marshal to the GUI thread (Tk is not thread-safe)
+            self.root.after(0, lambda: self._progress_update(
+                prog, "Blank Check: %d%%" % pct))
+
+        def work():
+            chunk = 0
+            bytes_read = 0
+            nonff = 0
+            first_nonff = None
+            a = addr
+            while a < end:
+                n = min(256, end - a)
+                resp = swdd_cmd(f"mem {a:x} {n}", timeout=5)
+                if resp:
+                    for line in resp.strip().split("\n"):
+                        line = line.strip()
+                        if not line or line.startswith("MEM") or line == ".":
+                            continue
+                        if ":" not in line:
+                            continue
+                        for b in line.split(":")[1].strip().split():
+                            try:
+                                v = int(b, 16)
+                            except ValueError:
+                                continue
+                            bytes_read += 1
+                            if v != 0xFF:
+                                nonff += 1
+                                if first_nonff is None:
+                                    first_nonff = a + (bytes_read - 1)
+                a += n
+                chunk += 1
+                progress(int(100 * chunk / nchunks))
+            if bytes_read == 0:
+                self.root.after(0, lambda: self._progress_stop(
+                    prog, "Blank Check: no board attached — SWD not responding"))
+                return
+            if first_nonff is None:
+                body = "Flash is BLANK — all %d bytes are 0xFF (%d KB erased or never programmed)." % (bytes_read, total // 1024)
+                self._ai_write("── Blank Check ──\n\n%s\n" % body)
+                self.root.after(0, lambda: self._progress_stop(
+                    prog, "Blank Check: flash is BLANK (%d KB)" % (total // 1024)))
+                self.root.after(0, lambda: self.blank_btn.config(
+                    text="Blank \u2713", bg="#1a4a1a", fg="#88ff88"))
+            else:
+                body = ("Flash is NOT blank — first non-0xFF byte at 0x%08X, "
+                        "%d byte(s) differ from the erased state (of %d read)." % (first_nonff, nonff, bytes_read))
+                self._ai_write("── Blank Check ──\n\n%s\n" % body)
+                self.root.after(0, lambda: self._progress_stop(
+                    prog, "Blank Check: NOT blank — first non-FF at 0x%08X" % first_nonff))
+                self.root.after(0, lambda: self.blank_btn.config(
+                    text="Blank \u2717", bg="#4a1a1a", fg="#ff8888"))
+
+        threading.Thread(target=work, daemon=True).start()
+
     # ------------------------------------------------------------------ #
     # Snapshot / upload (revived from the retired DevCon facility).
     # ------------------------------------------------------------------ #
@@ -1594,7 +1844,13 @@ class RegmonConsole:
         self.root.update()
         try:
             basename = os.path.basename(console_path)
-            subprocess.run(["git", "add", basename], cwd=UPLOAD_REPO,
+            # copy the snapshot from the fossil checkout's pics/ into the git
+            # mirror so git add sees it (SCREENSHOTS_DIR and UPLOAD_REPO differ)
+            import shutil
+            mirror_pic = os.path.join(UPLOAD_REPO, "pics", basename)
+            os.makedirs(os.path.dirname(mirror_pic), exist_ok=True)
+            shutil.copy2(console_path, mirror_pic)
+            subprocess.run(["git", "add", f"pics/{basename}"], cwd=UPLOAD_REPO,
                            capture_output=True, timeout=10)
             uploaded.append(basename)
             if uploaded:
