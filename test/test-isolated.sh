@@ -62,6 +62,24 @@ for db in STM32F051 STM32F103 STM32F407 STM32L0xx; do
     fi
 done
 
+# --- 3b. Alternate-function tables present where expected ---
+# F051 (131), F407 (519) and L0xx (290) must have AF tables so Regmon decodes
+# AFRL/AFRH/AFSEL meanings.  F103 uses CRL/CRH (no AF table) — it is exempt.
+echo "-- 3b. Alternate-function tables --"
+check_af() { # db minrows
+    local db="$1" min="$2"
+    local n
+    n=$(sqlite3 "$REPO/databases/$db" "SELECT count(*) FROM alternate_function;" 2>/dev/null)
+    if [ -n "$n" ] && [ "$n" -ge "$min" ]; then
+        ok "$db: alternate_function $n rows (>= $min)"
+    else
+        bad "$db: alternate_function missing or too few rows (got '${n:-empty}', want >= $min)"
+    fi
+}
+check_af STM32F051.db 131
+check_af STM32F407.db 519
+check_af STM32L0xx.db 290
+
 # --- 4. Python compiles ---
 echo "-- 4. Python compile check --"
 # Use py_compile with a writable cache dir (repo is mounted read-only).
