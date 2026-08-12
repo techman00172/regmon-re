@@ -43,7 +43,14 @@ Key facts an agent should know:
 - **swdd:** `swdcom/swdd`, serves Unix socket `/tmp/swdd-cmd.sock`.
 - **Databases:** `databases/*.db` (F051/F103/F407/L0xx + `stm32f0xx-rm.db`);
   the console auto-picks by chip IDCODE.
-- **Version:** v4.0.0 (standalone tree, distinct from the swdai 2.x console).
+- **Version:** v4.1.0 (standalone tree, distinct from the swdai 2.x console).
+- **RELEASE GATE (mandatory):** before ANY release (version bump, port, or
+  feature), run `bash test/test-harness.sh --build` and confirm
+  `=== RESULT: N passed, 0 failed ===`. The harness builds a fresh Podman
+  container, verifies the repo contents, databases (+ alternate-function
+  tables), Python compile, console launch, and setup.sh — all in isolation.
+  Do NOT cut corners: a release that has not passed the harness is not
+  released. (Rule added 2026-08-13 after the v4.1.0 port skipped the gate.)
 - **No audio/voice/TTS** — keyboard only.
 - **Docs for the user/AI:** `doc/requirements.md`, `doc/operation.md`,
   `doc/skills/regmon-re/SKILL.md`, `README.md`.
